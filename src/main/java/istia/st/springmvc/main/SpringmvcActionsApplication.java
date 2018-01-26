@@ -6,7 +6,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ComponentScan({"istia.st.springmvc.controllers"})
+@ComponentScan({"istia.st.springmvc.controllers", "istia.st.springmvc.model"})
 @EnableAutoConfiguration
 public class SpringmvcActionsApplication {
 
