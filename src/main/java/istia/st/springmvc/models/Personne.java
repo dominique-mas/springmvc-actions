@@ -8,6 +8,14 @@ public class Personne {
 	private String nom;
 	// âge
 	private int age;
+	
+	public Personne() {}
+	
+	public Personne(int id, String nom, int age) {
+		this.id = id;
+		this.nom = nom;
+		this.age = age;
+	}
 
 	/**
 	 * @return the id

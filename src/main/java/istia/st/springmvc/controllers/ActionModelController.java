@@ -12,22 +12,35 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.SessionAttributes;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import istia.st.springmvc.models.ApplicationModel;
+import istia.st.springmvc.models.Container;
 import istia.st.springmvc.models.Personne;
 import istia.st.springmvc.models.SessionModel;
 
+/**
+ * [@SessionAttributes] désigne la clé [container] comme faisant partie des
+ * attributs de la session.
+ * 
+ * @author Dominique Mas
+ *
+ */
 @RestController
+@SessionAttributes({ "container" })
 public class ActionModelController {
 
 	/**
@@ -42,6 +55,8 @@ public class ActionModelController {
 	 */
 	@Autowired
 	private SessionModel session;
+	@Autowired
+	private ApplicationModel application;
 
 	@RequestMapping(value = "/m01", method = RequestMethod.GET, produces = "text/plain;charset=UTF-8")
 	public String m01(String nom, String age) {
@@ -143,7 +158,7 @@ public class ActionModelController {
 	public String m09(@RequestHeader("User-Agent") String userAgent) {
 		return userAgent;
 	}
-	
+
 	/**
 	 * Accéder à un cookie (ici on crée le cookie)
 	 * 
@@ -153,7 +168,7 @@ public class ActionModelController {
 	public void m10(HttpServletResponse response) {
 		response.addCookie(new Cookie("cookie1", "rememberme"));
 	}
-	
+
 	/**
 	 * Accéder à un cookie (ici on récupère la valeur du cookie)
 	 * 
@@ -210,7 +225,7 @@ public class ActionModelController {
 		session.setAttribute("compteur", iCompteur);
 		return String.valueOf(iCompteur);
 	}
-	
+
 	/**
 	 * Gérer un objet de portée (scope) session [Autowired]
 	 * 
@@ -220,5 +235,170 @@ public class ActionModelController {
 	public String m16() {
 		session.setCompteur(session.getCompteur() + 1);
 		return String.valueOf(session.getCompteur());
+	}
+
+	/**
+	 * Gérer un objet de portée application [Autowired]
+	 * 
+	 * @return
+	 */
+	@RequestMapping(value = "/m17", method = RequestMethod.GET, produces = "text/plain;charset=UTF-8")
+	public String m17() {
+		return String.valueOf(application.getCompteur().incrementAndGet());
+	}
+
+	/**
+	 * Utilisation de [@SessionAttributes]. La clé [container] est mise en session.
+	 * Etape indispensable avant d'appeler m19.
+	 * 
+	 * @param session
+	 */
+	@RequestMapping(value = "/m18", method = RequestMethod.GET)
+	public void m18(HttpSession session) {
+		// ici on met la clé [container] dans la session
+		session.setAttribute("container", new Container());
+	}
+
+	/**
+	 * On utilise l'annotation [@ModelAttribute]. Le comportement de cette
+	 * annotation est assez complexe. Le paramètre [container] de cette annotation
+	 * peut désigner diverses choses et en particulier un objet de la session. Il
+	 * faut pour cela que celui-ci ait été déclaré avec une annotation
+	 * [@SessionAttributes] sur la classe elle-même (voir plus haut).
+	 * 
+	 * L'annotation [@SessionAttributes({"container"})] fait que cette clé peut être
+	 * injectée dans un paramètre annoté avec [@ModelAttribute("container")].
+	 * 
+	 * Pas visible dans l'exemple d'exécution qui va suivre, mais une information
+	 * annotée avec [@ModelAttribute] fait automatiquement partie du modèle M
+	 * transmis à la vue V.
+	 * 
+	 * @param container
+	 * @return
+	 */
+	@RequestMapping(value = "/m19", method = RequestMethod.GET)
+	public String m19(@ModelAttribute("container") Container container) {
+		container.setCompteur(1 + container.getCompteur());
+
+		return String.valueOf(container.getCompteur());
+	}
+
+	/**
+	 * Définit un attribut de modèle nommé [p]. Il s'agit du modèle M d'une vue V,
+	 * modèle représenté par un type [Model] dans Spring MVC. Un modèle se comporte
+	 * comme un dictionnaire de couples [clé, valeur]. Ici, la clé [p] est associée
+	 * à l'objet [Personne] construit par la méthode [getPersonne]. Le nom de la
+	 * méthode peut être quelconque.
+	 * 
+	 * @return
+	 */
+	@ModelAttribute("p")
+	public Personne getPersonne() {
+		return new Personne(7, "abcd", 14);
+	}
+
+	// ---------------instanciation de @ModelAttribute --------------------------
+	// sera injecté s'il est dans la session
+	// sera injecté si le contrôleur a défini une méthode pour cet attribut
+	// peut provenir des champs de l'URL s'il existe un convertisseur String -->
+	// type de l'attribut
+	// sinon est construit avec le constructeur par défaut
+	// ensuite les attributs du modèle sont initialisés avec les paramètres du GET
+	// ou du POST
+	// le résultat final fera partie du modèle produit par l'action
+
+	// l'attribut p est injecté dans les arguments------------------------
+	/**
+	 * On rend l'objet [personne] pour vérification. Celui-ci sera sérialisé en jSON
+	 * avant d'être envoyé au client.
+	 * 
+	 * @param personne
+	 * @return
+	 */
+	@RequestMapping(value = "/m20", method = RequestMethod.GET)
+	public Personne m20(@ModelAttribute("p") Personne personne) {
+		return personne;
+	}
+
+	/**
+	 * Une action qui veut faire afficher une vue V doit construire le modèle M de
+	 * celle-ci. Spring MVC gère celui-ci avec un type [Model] qui peut être injecté
+	 * dans les paramètres de l'action. Au départ ce modèle est vide ou contient les
+	 * informations taguées avec l'annotation [@ModelAttribute]. L'action enrichit
+	 * ou non ce modèle avant de le transmettre à une vue.
+	 * 
+	 * @param model
+	 * @return
+	 */
+	@RequestMapping(value = "/m21", method = RequestMethod.GET)
+	public String m21(Model model) {
+		return model.toString();
+	}
+
+	/**
+	 * L'attribut de modèle de clé [param1] n'existe pas. Dans ce cas, le type
+	 * associé doit avoir un constructeur par défaut. C'est le cas ici du type
+	 * [String] mais on ne peut écrire [@ModelAttribute("param1") Integer p1] car la
+	 * classe [Integer] n'a pas de constructeur par défaut.
+	 * 
+	 * L'attribut de modèle [param1] est bien présent dans le modèle mais la méthode
+	 * [toString] de la valeur associée ne donne pas d'indication sur cette valeur.
+	 * 
+	 * L'application est appelée de la façon suivante :
+	 * http://localhost:8080/m22?p1=x
+	 * 
+	 * Pourquoi est-ce que la page n'affiche pas la valeur x pour p1 ???
+	 * 
+	 * @param p1
+	 * @param model
+	 * @return
+	 */
+	@RequestMapping(value = "/m22", method = RequestMethod.GET)
+	public String m22(@ModelAttribute("param1") String p1, Model model) {
+
+		return model.toString();
+	}
+
+	/**
+	 * L'attribut de modèle [param2] est mis explicitement dans le modèle.
+	 * 
+	 * L'application est appelée de la façon suivante :
+	 * http://localhost:8080/m23?p2=y
+	 * 
+	 * La page affiche la valeur y de p2...
+	 * 
+	 * @param p2
+	 * @param model
+	 * @return
+	 */
+	@RequestMapping(value = "/m23", method = RequestMethod.GET)
+	public String m23(String p2, Model model) {
+		model.addAttribute("param2", p2);
+		return model.toString();
+	}
+
+	// ------ l'attribut de modèle [unePersonne] est automatiquement mis dans le
+	// modèle
+	/**
+	 * On constate que l'annotation [@ModelAttribute("unePersonne") Personne p1] a
+	 * mis la personne [p1] dans le modèle, associée à la clé [unePersonne].
+	 * 
+	 * Et là ça marche...
+	 * 
+	 * @param p1
+	 * @param model
+	 * @return
+	 */
+	@RequestMapping(value = "/m23b", method = RequestMethod.GET)
+	public String m23b(@ModelAttribute("unePersonne") Personne p1, Model model) {
+		return model.toString();
+	}
+
+	// On n'a pas mis l'annotation [@ModelAttribute].
+	// --------- la personne p1 est automatiquement mise dans le modèle
+	// -------- avec pour clé le nom de sa classe avec le 1er caractère en minuscule
+	@RequestMapping(value = "/m23c", method = RequestMethod.GET)
+	public String m23c(Personne p1, Model model) {
+		return model.toString();
 	}
 }
