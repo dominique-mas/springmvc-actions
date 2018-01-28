@@ -1,4 +1,4 @@
-package istia.st.springmvc.model;
+package istia.st.springmvc.models;
 
 public class Personne {
 

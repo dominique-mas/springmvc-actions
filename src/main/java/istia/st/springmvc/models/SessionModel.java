@@ -1,4 +1,4 @@
-package istia.st.springmvc.model;
+package istia.st.springmvc.models;
 
 import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;

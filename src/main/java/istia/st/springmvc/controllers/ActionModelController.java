@@ -6,10 +6,13 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -21,8 +24,8 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import istia.st.springmvc.model.Personne;
-import istia.st.springmvc.model.SessionModel;
+import istia.st.springmvc.models.Personne;
+import istia.st.springmvc.models.SessionModel;
 
 @RestController
 public class ActionModelController {
@@ -139,6 +142,27 @@ public class ActionModelController {
 	@RequestMapping(value = "/m09", method = RequestMethod.GET)
 	public String m09(@RequestHeader("User-Agent") String userAgent) {
 		return userAgent;
+	}
+	
+	/**
+	 * Accéder à un cookie (ici on crée le cookie)
+	 * 
+	 * @param response
+	 */
+	@RequestMapping(value = "/m10", method = RequestMethod.GET)
+	public void m10(HttpServletResponse response) {
+		response.addCookie(new Cookie("cookie1", "rememberme"));
+	}
+	
+	/**
+	 * Accéder à un cookie (ici on récupère la valeur du cookie)
+	 * 
+	 * @param cookie1
+	 * @return
+	 */
+	@RequestMapping(value = "/m11", method = RequestMethod.GET)
+	public String m11(@CookieValue("cookie1") String cookie1) {
+		return cookie1;
 	}
 
 	/**
