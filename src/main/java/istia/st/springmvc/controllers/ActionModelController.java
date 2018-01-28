@@ -4,15 +4,19 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
+import javax.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,17 +26,29 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.SessionAttributes;
+import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.support.WebApplicationContextUtils;
+import org.springframework.web.servlet.support.RequestContextUtils;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import istia.st.springmvc.models.ActionModel01;
 import istia.st.springmvc.models.ApplicationModel;
 import istia.st.springmvc.models.Container;
 import istia.st.springmvc.models.Personne;
 import istia.st.springmvc.models.SessionModel;
 
 /**
+ * [@RestController] indique deux choses : 1/ fait de la classe annotée un
+ * contrôleur Spring (donc contient des actions qui traitent des URL de
+ * clients). Un contrôleur est un composant Spring. 2/ le résultat de ces
+ * actions est envoyé au client. La réponse envoyée au client est la
+ * sérialisation en chaîne de caractères du résultat des actions. Si des
+ * dépendances vers JSON existent (par exemple), Spring Boot fixera
+ * automatiquement la sérialisation en JSON.
+ * 
  * [@SessionAttributes] désigne la clé [container] comme faisant partie des
  * attributs de la session.
  * 
@@ -400,5 +416,111 @@ public class ActionModelController {
 	@RequestMapping(value = "/m23c", method = RequestMethod.GET)
 	public String m23c(Personne p1, Model model) {
 		return model.toString();
+	}
+
+	// ----------------------- validation d'un modèle ------------------------
+	/**
+	 * L'annotation [@Valid] indique que les contraintes de validité doivent être
+	 * vérifiées.
+	 * 
+	 * Avec l'annotation [@Valid], les erreurs de validation vont être reportées
+	 * dans le paramètre [BindingResult result]. Sans l'annotation [@Valid], les
+	 * erreurs de validation provoquent un plantage de l'action et le serveur envoie
+	 * au client une réponse HTTP avec un statut 500 (Internal server error). Ce
+	 * point n'a pu être vérifié...
+	 * 
+	 * @param data
+	 * @param result
+	 * @return
+	 */
+	@RequestMapping(value = "/m24", method = RequestMethod.GET)
+	public Map<String, Object> m24(@Valid ActionModel01 data, BindingResult result) {
+		Map<String, Object> map = new HashMap<String, Object>();
+		// des erreurs ?
+		if (result.hasErrors()) {
+			StringBuffer buffer = new StringBuffer();
+			// parcours de la liste des erreurs
+			for (FieldError error : result.getFieldErrors()) {
+				buffer.append(String.format("[%s:%s:%s:%s:%s]", error.getField(), error.getRejectedValue(),
+						String.join(" - ", error.getCodes()), error.getCode(), error.getDefaultMessage()));
+			}
+			map.put("errors", buffer.toString());
+		} else {
+			// pas d'erreurs
+			Map<String, Object> mapData = new HashMap<String, Object>();
+			mapData.put("a", data.getA());
+
+			mapData.put("b", data.getB());
+			map.put("data", mapData);
+		}
+		return map;
+	}
+
+	// validation d'un modèle, gestion des messages d'erreur
+	// ------------------------
+	@RequestMapping(value = "/m25", method = RequestMethod.GET)
+	public Map<String, Object> m25(@Valid ActionModel01 data, BindingResult result, HttpServletRequest request)
+			throws Exception {
+
+		// le dictionnaire des résultats
+		Map<String, Object> map = new HashMap<String, Object>();
+		// le contexte de l'application Spring (contient tous les beans Spring de
+		// l'application ; il permet également d'accéder aux fichiers de messages)
+		WebApplicationContext ctx = WebApplicationContextUtils.getWebApplicationContext(request.getServletContext());
+		// locale
+		Locale locale = RequestContextUtils.getLocale(request);
+		// des erreurs ?
+		if (result.hasErrors()) {
+			StringBuffer buffer = new StringBuffer();
+			for (FieldError error : result.getFieldErrors()) {
+				// recherche du msg d'erreur à partir des codes d'erreur
+				// le msg est cherché dans les fichiers de messages
+				// les codes d'erreur sous forme de tableau
+				String[] codes = error.getCodes();
+				// sous forme de chaîne
+				String listCodes = String.join(" - ", codes);
+				// recherche
+				String msg = null;
+				int i = 0;
+				while (msg == null && i < codes.length) {
+					try {
+						/*
+						 * Le premier paramètre est le code cherché dans [messages.properties],
+						 * 
+						 * Le second est un tableau de paramètres car parfois les messages sont
+						 * paramétrés. Ce n'est pas le cas ici,
+						 * 
+						 * Le troisième est la locale utilisée. La locale désigne la langue utilisée,
+						 * [fr_FR] pour le français de France, [en_US] pour l'anglais des USA. Le
+						 * message est cherché dans messages_[locale].properties donc par exemple
+						 * [messages_fr_FR.properties]. Si ce fichier n'existe pas, le message est
+						 * cherché dans [messages_fr.properties]. Si ce fichier n'existe pas, le message
+						 * est cherché dans [messages.properties]. C'est ce dernier cas qui fonctionnera
+						 * pour nous.
+						 */
+						msg = ctx.getMessage(codes[i], null, locale);
+					} catch (Exception e) {
+
+					}
+					i++;
+				}
+				// a-t-on trouvé ?
+				if (msg == null) {
+					throw new Exception(String.format("Indiquez un message pour l'un des codes [%s]", listCodes));
+				}
+				// on a trouvé - on ajoute le msg d'erreur à la chaîne des msg d'erreur
+				// Question : pourquoi utiliser join sur un objet de type String ?
+				buffer.append(String.format("[%s:%s:%s:%s]", locale.toString(), error.getField(),
+						error.getRejectedValue(), String.join(" - ", msg)));
+			}
+			map.put("errors", buffer.toString());
+		} else {
+			// ok
+			Map<String, Object> mapData = new HashMap<String, Object>();
+			mapData.put("a", data.getA());
+			mapData.put("b", data.getB());
+			map.put("data", mapData);
+		}
+		return map;
 	}
 }
